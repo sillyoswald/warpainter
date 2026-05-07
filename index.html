@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0d0d0f"/>
+<title>Warpainter — Miniature Paint Planner</title>
+<meta name="description" content="Plan your Warhammer miniature paint schemes with AI assistance"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;background:#0d0d0f;color:#e8e0d0;font-family:'Cinzel','Georgia',serif;overflow:hidden;}
+  #app{height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
+  ::-webkit-scrollbar{display:none;}
+  input,button,textarea{font-family:inherit;}
+  @keyframes wpdot{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
+  @keyframes wpfade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes wpshine{0%{background-position:200% center}100%{background-position:-200% center}}
+  .dot{width:5px;height:5px;border-radius:50%;background:#d4af37;display:inline-block;}
+  .dot1{animation:wpdot 1.2s ease-in-out 0s infinite;}
+  .dot2{animation:wpdot 1.2s ease-in-out 0.2s infinite;}
+  .dot3{animation:wpdot 1.2s ease-in-out 0.4s infinite;}
+  .dots{display:inline-flex;gap:4px;align-items:center;vertical-align:middle;}
+  input[type=range]{-webkit-appearance:none;height:4px;border-radius:2px;background:#2a2018;outline:none;width:100%;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#d4af37;cursor:pointer;}
+  .fade{animation:wpfade 0.3s ease;}
+  .shine{background:linear-gradient(90deg,#d4af37,#f5e09a,#d4af37);background-size:200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:wpshine 4s linear infinite;}
+  .nav-btn{flex:1;padding:10px 4px 8px;background:transparent;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;transition:opacity 0.15s;}
+  .tab-btn{flex:1;padding:11px 4px;background:transparent;border:none;border-bottom:2px solid transparent;font-size:12px;cursor:pointer;transition:all 0.2s;font-family:'Cinzel',serif;}
+  .part-row{display:flex;align-items:center;gap:12px;background:#0f0f11;border:1px solid #1e1e20;border-radius:12px;padding:12px 14px;cursor:pointer;width:100%;text-align:left;margin-bottom:8px;}
+  .part-row:active{opacity:0.7;}
+  .action-btn{width:100%;padding:14px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:'Cinzel',serif;letter-spacing:0.06em;border:none;}
+  .ghost-btn{width:100%;padding:13px;border-radius:12px;background:transparent;border:1px solid #2a2018;color:#6a5a40;font-size:13px;cursor:pointer;font-family:'Cinzel',serif;}
+  .proj-card{background:#0f0f11;border:1px solid #1e1e20;border-radius:14px;overflow:hidden;cursor:pointer;margin-bottom:12px;}
+  .proj-card:active{opacity:0.8;}
+  .inv-row{display:flex;align-items:center;gap:12px;background:#0f0f11;border:1px solid #1a1a1c;border-radius:10px;padding:10px 12px;margin-bottom:6px;}
+  .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:900;}
+  .sheet{position:fixed;bottom:0;left:0;right:0;background:#0f0f11;border-radius:20px 20px 0 0;border:1px solid #2a2018;border-bottom:none;max-height:85vh;display:flex;flex-direction:column;z-index:901;}
+  .type-pill{padding:6px 14px;border-radius:20px;font-size:12px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all 0.15s;}
+  .paint-chip-btn{display:flex;flex-direction:column;align-items:center;gap:5px;background:transparent;border:none;cursor:pointer;padding:4px;width:58px;}
+  .paint-chip-btn:active{opacity:0.7;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ── DATA ─────────────────────────────────────────────────────────────────────
+const PAINTS = [
+  {name:"Abaddon Black",hex:"#1a1a1a",type:"Base"},
+  {name:"Corax White",hex:"#f0f0f0",type:"Base"},
+  {name:"Celestra Grey",hex:"#8a9ea0",type:"Base"},
+  {name:"Mechanicus Standard Grey",hex:"#5a6a6a",type:"Base"},
+  {name:"Mephiston Red",hex:"#8b1a1a",type:"Base"},
+  {name:"Macragge Blue",hex:"#1a3a6b",type:"Base"},
+  {name:"Caliban Green",hex:"#1a4a1a",type:"Base"},
+  {name:"Averland Sunset",hex:"#e8a020",type:"Base"},
+  {name:"Retributor Armour",hex:"#b8860b",type:"Base"},
+  {name:"Rhinox Hide",hex:"#4a2010",type:"Base"},
+  {name:"Mournfang Brown",hex:"#6b3018",type:"Base"},
+  {name:"XV-88",hex:"#8b5a2b",type:"Base"},
+  {name:"Leadbelcher",hex:"#6a6a6a",type:"Base"},
+  {name:"Naggaroth Night",hex:"#3a1a4a",type:"Base"},
+  {name:"Bugman's Glow",hex:"#9a5a4a",type:"Base"},
+  {name:"Jokaero Orange",hex:"#c04a10",type:"Base"},
+  {name:"Zandri Dust",hex:"#b8a060",type:"Base"},
+  {name:"Evil Sunz Scarlet",hex:"#c0392b",type:"Layer"},
+  {name:"Wild Rider Red",hex:"#e74c3c",type:"Layer"},
+  {name:"Calgar Blue",hex:"#3a6fa8",type:"Layer"},
+  {name:"Teclis Blue",hex:"#4a90d9",type:"Layer"},
+  {name:"Lothern Blue",hex:"#5ba3e0",type:"Layer"},
+  {name:"Warpstone Glow",hex:"#2d8a2d",type:"Layer"},
+  {name:"Moot Green",hex:"#39c739",type:"Layer"},
+  {name:"Nurgling Green",hex:"#8fb87a",type:"Layer"},
+  {name:"Yriel Yellow",hex:"#f0c030",type:"Layer"},
+  {name:"Flash Gitz Yellow",hex:"#f5e040",type:"Layer"},
+  {name:"Auric Armour Gold",hex:"#d4a017",type:"Layer"},
+  {name:"Liberator Gold",hex:"#d4af37",type:"Layer"},
+  {name:"Balor Brown",hex:"#a0702a",type:"Layer"},
+  {name:"Skrag Brown",hex:"#c08030",type:"Layer"},
+  {name:"Ironbreaker",hex:"#8a8a8a",type:"Layer"},
+  {name:"Runefang Steel",hex:"#c0c0c0",type:"Layer"},
+  {name:"Xereus Purple",hex:"#6a2a8a",type:"Layer"},
+  {name:"Genestealer Purple",hex:"#9a4ab8",type:"Layer"},
+  {name:"Cadian Fleshtone",hex:"#c07a5a",type:"Layer"},
+  {name:"Kislev Flesh",hex:"#d4987a",type:"Layer"},
+  {name:"Pallid Wych Flesh",hex:"#e8c0a0",type:"Layer"},
+  {name:"Troll Slayer Orange",hex:"#e05820",type:"Layer"},
+  {name:"Fire Dragon Bright",hex:"#f07030",type:"Layer"},
+  {name:"Ushabti Bone",hex:"#c8b870",type:"Layer"},
+  {name:"Screaming Skull",hex:"#e0d090",type:"Layer"},
+  {name:"Nuln Oil",hex:"#1a1a2a",type:"Shade"},
+  {name:"Agrax Earthshade",hex:"#3a2010",type:"Shade"},
+  {name:"Reikland Fleshshade",hex:"#8b3a20",type:"Shade"},
+  {name:"Druchii Violet",hex:"#4a1a5a",type:"Shade"},
+  {name:"Biel-Tan Green",hex:"#1a4a2a",type:"Shade"},
+  {name:"Militarum Green",hex:"#3a5a2a",type:"Shade"},
+  {name:"Bloodletter",hex:"#c0392b",type:"Glaze"},
+  {name:"Guilliman Flesh",hex:"#e8a07a",type:"Contrast"},
+  {name:"Black Templar",hex:"#1a1a28",type:"Contrast"},
+  {name:"Skeleton Horde",hex:"#c8a850",type:"Contrast"},
+  {name:"Ork Flesh",hex:"#5a8a30",type:"Contrast"},
+];
+
+const TYPE_COLORS = {Base:"#4a90d9",Layer:"#27ae60",Shade:"#8e44ad",Glaze:"#e67e22",Contrast:"#e74c3c"};
+const HARMONY_COLORS = {Excellent:"#27ae60",Good:"#2ecc71",Fair:"#f39c12","Needs Work":"#e74c3c"};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let state = {
+  screen: "projects",       // projects | editor | collection
+  editorTab: "parts",       // parts | visualize | overlay
+  image: null,
+  imageBase64: null,
+  projectName: "Untitled Warband",
+  editingName: false,
+  parts: [],
+  selectedPart: null,
+  paintAssignments: {},
+  analysisResult: null,
+  analyzing: false,
+  visualizing: false,
+  editingProjectId: null,
+  editorStep: "upload",
+  error: null,
+  saveFlash: false,
+  showPaintSheet: false,
+  paintFilter: "All",
+  paintSearch: "",
+  overlayOpacity: 0.55,
+  projects: [],
+  inventory: [],
+  wishlist: [],
+  collTab: "all",
+  collSearch: "",
+};
+
+function setState(patch) {
+  state = {...state, ...patch};
+  render();
+}
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+function loadStorage() {
+  try {
+    const p = localStorage.getItem("wp_projects");
+    const inv = localStorage.getItem("wp_inventory");
+    const wl = localStorage.getItem("wp_wishlist");
+    if (p)   state.projects  = JSON.parse(p);
+    if (inv) state.inventory = JSON.parse(inv);
+    if (wl)  state.wishlist  = JSON.parse(wl);
+  } catch {}
+}
+function saveProjects(d)  { state.projects=d;  try{localStorage.setItem("wp_projects", JSON.stringify(d));}catch{} render(); }
+function saveInventory(d) { state.inventory=d; try{localStorage.setItem("wp_inventory",JSON.stringify(d));}catch{} render(); }
+function saveWishlist(d)  { state.wishlist=d;  try{localStorage.setItem("wp_wishlist", JSON.stringify(d));}catch{} render(); }
+function toggleInventory(n) { saveInventory(state.inventory.includes(n)?state.inventory.filter(x=>x!==n):[...state.inventory,n]); }
+function toggleWishlist(n)  { saveWishlist(state.wishlist.includes(n)?state.wishlist.filter(x=>x!==n):[...state.wishlist,n]); }
+
+// ── FILE HANDLING ─────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const result = e.target.result;
+    // Extract actual mime type from data URL
+    const mimeMatch = result.match(/^data:([^;]+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+    const base64 = result.split(",")[1];
+    setState({
+      image: result,
+      imageBase64: base64,
+      imageMime: mimeType,
+      parts:[], paintAssignments:{}, analysisResult:null,
+      selectedPart:null, editorStep:"upload", error:null,
+    });
+  };
+  reader.onerror = () => setState({error:"Failed to read image file. Please try again."});
+  reader.readAsDataURL(file);
+}
+
+// ── API CALLS ─────────────────────────────────────────────────────────────────
+async function analyzeImage() {
+  setState({analyzing:true, error:null});
+  try {
+    const mime = state.imageMime || "image/jpeg";
+    const validMimes = ["image/jpeg","image/png","image/gif","image/webp"];
+    const safeMime = validMimes.includes(mime) ? mime : "image/jpeg";
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-20250514", max_tokens:1000,
+        messages:[{role:"user", content:[
+          {type:"image", source:{type:"base64", media_type:safeMime, data:state.imageBase64}},
+          {type:"text", text:`You are a Warhammer miniature painting expert. Look at this photo of an unpainted or painted miniature and identify the distinct paintable components you can see — such as armour, robes, weapons, skin, hair, base, metals, etc.
+
+This is a grey plastic (unprimed) miniature — that is fine and expected. Analyse what you can see based on the model's shape and detail.
+
+Return ONLY a valid JSON array (no markdown, no explanation) of 5-9 objects:
+[{"part":"Name","description":"one sentence describing what you see","paintingTip":"one specific practical painting tip"},...]
+
+Do not refuse or ask for a better image. Work with what is visible.`}
+        ]}]
+      })
+    });
+    const data = await res.json();
+    if (data.error) { setState({error:`API error: ${data.error.message}`, analyzing:false}); return; }
+    const text = data.content.map(c=>c.text||"").join("");
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) { setState({error:`Unexpected response. Please try again.`, analyzing:false}); return; }
+    const parsed = JSON.parse(jsonMatch[0]);
+    setState({parts:parsed, selectedPart:parsed[0]?.part||null, editorStep:"paint", analyzing:false});
+  } catch(e) {
+    setState({error:`Analysis failed: ${e.message}. Please try again.`, analyzing:false});
+  }
+}
+
+async function generateVisualization() {
+  setState({visualizing:true, error:null});
+  const scheme = state.parts.map(p=>{
+    const paint = state.paintAssignments[p.part];
+    return paint?`${p.part}: ${paint.name} (${paint.hex})`:`${p.part}: unassigned`;
+  }).join(", ");
+  try {
+    const mime = state.imageMime || "image/jpeg";
+    const validMimes = ["image/jpeg","image/png","image/gif","image/webp"];
+    const safeMime = validMimes.includes(mime) ? mime : "image/jpeg";
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-20250514", max_tokens:1200,
+        messages:[{role:"user", content:[
+          {type:"image", source:{type:"base64", media_type:safeMime, data:state.imageBase64}},
+          {type:"text", text:`You are a Warhammer painting coach. Colour scheme planned: ${scheme}\n\nReturn ONLY JSON (no markdown):\n{"visualDescription":"2-3 evocative sentences","harmonyRating":"Excellent|Good|Fair|Needs Work","harmonyReason":"one sentence","highlights":{"PartName":"highlight paint name"},"proTip":"one actionable tip"}`}
+        ]}]
+      })
+    });
+    const data = await res.json();
+    if (data.error) { setState({error:`API error: ${data.error.message}`, visualizing:false}); return; }
+    const text = data.content.map(c=>c.text||"").join("");
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) { setState({error:"Unexpected response. Please try again.", visualizing:false}); return; }
+    setState({analysisResult:JSON.parse(jsonMatch[0]), editorTab:"visualize", visualizing:false});
+  } catch(e) {
+    setState({error:`Visualisation failed: ${e.message}`, visualizing:false});
+  }
+}
+
+// ── PROJECTS ──────────────────────────────────────────────────────────────────
+function saveProject() {
+  const project = {
+    id: state.editingProjectId || Date.now().toString(),
+    name: state.projectName, image: state.image,
+    parts: state.parts, paintAssignments: state.paintAssignments,
+    analysisResult: state.analysisResult, updatedAt: Date.now(),
+  };
+  const idx = state.projects.findIndex(p=>p.id===project.id);
+  const updated = idx>=0 ? state.projects.map((p,i)=>i===idx?project:p) : [project,...state.projects];
+  saveProjects(updated);
+  state.editingProjectId = project.id;
+  state.saveFlash = true;
+  setTimeout(()=>setState({saveFlash:false}), 2000);
+  render();
+}
+
+function openProject(proj) {
+  const img = proj.image;
+  const mimeMatch = img ? img.match(/^data:([^;]+);base64,/) : null;
+  setState({
+    editingProjectId:proj.id, projectName:proj.name,
+    image:img, imageBase64:img?img.split(",")[1]:null,
+    imageMime: mimeMatch ? mimeMatch[1] : "image/jpeg",
+    parts:proj.parts||[], paintAssignments:proj.paintAssignments||{},
+    analysisResult:proj.analysisResult||null,
+    selectedPart:proj.parts?.[0]?.part||null,
+    editorStep:proj.parts?.length?"paint":"upload",
+    editorTab:"parts", error:null, screen:"editor",
+  });
+}
+
+function newProject() {
+  setState({
+    editingProjectId:null, projectName:"Untitled Warband",
+    image:null, imageBase64:null, imageMime:null, parts:[], paintAssignments:{},
+    analysisResult:null, selectedPart:null,
+    editorStep:"upload", editorTab:"parts", error:null, screen:"editor",
+  });
+}
+
+// ── SHOPPING LIST ─────────────────────────────────────────────────────────────
+function exportShoppingList() {
+  const unique = state.parts.filter(p=>state.paintAssignments[p.part]).map(p=>state.paintAssignments[p.part])
+    .filter((p,i,a)=>a.findIndex(x=>x.name===p.name)===i);
+  const needed = unique.filter(p=>!state.inventory.includes(p.name));
+  const lines = [
+    "WARPAINTER — Shopping List",
+    `Project: ${state.projectName}`,
+    `Date: ${new Date().toLocaleDateString()}`,
+    "",
+    `TO BUY (${needed.length})`,
+    "─".repeat(40),
+    ...needed.map(p=>`[ ] ${p.name.padEnd(28)} ${p.type}`),
+    needed.length===0?"    ✓ You own everything!":"",
+    "","FULL SCHEME","─".repeat(40),
+    ...state.parts.map(p=>{
+      const paint=state.paintAssignments[p.part];
+      const owned=paint&&state.inventory.includes(paint.name);
+      return paint?`${owned?"✓":"○"} ${p.part.padEnd(20)} → ${paint.name}`:`  ${p.part.padEnd(20)} → (unassigned)`;
+    }),
+  ].join("\n");
+  const blob = new Blob([lines],{type:"text/plain"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url; a.download=`${state.projectName.replace(/\s+/g,"_")}_paints.txt`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── CANVAS OVERLAY ────────────────────────────────────────────────────────────
+function renderOverlay() {
+  const canvas = document.getElementById("overlay-canvas");
+  if (!canvas || !state.image) return;
+  const ctx = canvas.getContext("2d");
+  const img = new Image();
+  img.onload = () => {
+    canvas.width = img.width; canvas.height = img.height;
+    ctx.drawImage(img,0,0);
+    const colors = state.parts.filter(p=>state.paintAssignments[p.part]).map(p=>state.paintAssignments[p.part].hex);
+    if (!colors.length) return;
+    const id = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const d = id.data; const w=canvas.width; const h=canvas.height;
+    const op = state.overlayOpacity;
+    for(let y=0;y<h;y++){for(let x=0;x<w;x++){
+      const i=(y*w+x)*4;
+      const r=d[i],g=d[i+1],b=d[i+2],a=d[i+3];
+      if(a<10) continue;
+      const band=Math.min(Math.floor((x/w)*colors.length),colors.length-1);
+      const hex=colors[band];
+      const cr=parseInt(hex.slice(1,3),16),cg=parseInt(hex.slice(3,5),16),cb=parseInt(hex.slice(5,7),16);
+      const lum=(r*0.299+g*0.587+b*0.114)/255;
+      d[i]  =Math.min(255,Math.round(r*(1-op)+cr*lum*op*2.2));
+      d[i+1]=Math.min(255,Math.round(g*(1-op)+cg*lum*op*2.2));
+      d[i+2]=Math.min(255,Math.round(b*(1-op)+cb*lum*op*2.2));
+    }}
+    ctx.putImageData(id,0,0);
+  };
+  img.src = state.image;
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const dots = () => `<span class="dots"><span class="dot dot1"></span><span class="dot dot2"></span><span class="dot dot3"></span></span>`;
+const assignedCount = () => Object.keys(state.paintAssignments).length;
+const getPaintBadge = name => state.inventory.includes(name)?"owned":state.wishlist.includes(name)?"wish":null;
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById("app");
+  app.innerHTML = buildApp();
+  bindEvents();
+  if (state.editorTab==="overlay" && state.image) {
+    setTimeout(renderOverlay, 50);
+  }
+}
+
+function buildApp() {
+  return `
+    ${buildHeader()}
+    <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;position:relative;">
+      ${state.screen==="projects"  ? buildProjects()  : ""}
+      ${state.screen==="editor"    ? buildEditor()    : ""}
+      ${state.screen==="collection"? buildCollection(): ""}
+    </div>
+    ${buildBottomNav()}
+    ${state.showPaintSheet ? buildPaintSheet() : ""}
+  `;
+}
+
+// ── HEADER ────────────────────────────────────────────────────────────────────
+function buildHeader() {
+  const safeTop = "max(12px, env(safe-area-inset-top))";
+  return `
+  <div style="background:linear-gradient(180deg,#1a1208,#0d0d0f);border-bottom:1px solid #2a2018;padding:12px 16px 10px;padding-top:${safeTop};display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <span style="font-size:22px;">⚔️</span>
+    <span class="shine" style="font-size:18px;font-weight:700;letter-spacing:0.1em;">WARPAINTER</span>
+    ${state.screen==="editor" ? `
+      <button id="save-btn" style="margin-left:auto;padding:8px 16px;border-radius:8px;cursor:pointer;background:${state.saveFlash?"rgba(39,174,96,0.2)":"rgba(212,175,55,0.1)"};border:1px solid ${state.saveFlash?"#27ae60":"#d4af37"};color:${state.saveFlash?"#27ae60":"#d4af37"};font-size:12px;letter-spacing:0.06em;font-weight:600;font-family:'Cinzel',serif;transition:all 0.3s;">
+        ${state.saveFlash?"✓ Saved":"💾 Save"}
+      </button>` : ""}
+  </div>`;
+}
+
+// ── BOTTOM NAV ────────────────────────────────────────────────────────────────
+function buildBottomNav() {
+  const safePad = "max(8px, env(safe-area-inset-bottom))";
+  const navs = [
+    {id:"projects",icon:"⚔️",label:"PROJECTS"},
+    {id:"editor",  icon:"🎨",label:"EDITOR"},
+    {id:"collection",icon:"🧪",label:"COLLECTION"},
+  ];
+  return `
+  <div style="border-top:1px solid #2a2018;background:#0a0a0c;display:flex;flex-shrink:0;padding-bottom:${safePad};">
+    ${navs.map(n=>`
+      <button class="nav-btn" data-nav="${n.id}" style="opacity:${state.screen===n.id?1:0.4};">
+        <span style="font-size:22px;">${n.icon}</span>
+        <span style="font-size:10px;letter-spacing:0.08em;color:${state.screen===n.id?"#d4af37":"#6a5a40"};font-weight:${state.screen===n.id?700:400};">${n.label}</span>
+      </button>`).join("")}
+  </div>`;
+}
+
+// ── PROJECTS SCREEN ───────────────────────────────────────────────────────────
+function buildProjects() {
+  const cards = state.projects.map(proj=>{
+    const paintList = Object.values(proj.paintAssignments||{}).filter((p,i,a)=>a.findIndex(x=>x.name===p.name)===i);
+    const ownedCount = paintList.filter(p=>state.inventory.includes(p.name)).length;
+    const colorStrip = paintList.length ? `<div style="display:flex;height:6px;">${paintList.map(p=>`<div style="flex:1;background:${p.hex};"></div>`).join("")}</div>` : "";
+    return `
+    <div class="proj-card" data-open-proj="${proj.id}">
+      ${proj.image ? `<div style="height:140px;background:url('${proj.image}') center/cover;"></div>` : `<div style="height:100px;background:linear-gradient(135deg,#1a1208,#0a0a0c);display:flex;align-items:center;justify-content:center;font-size:36px;">🛡️</div>`}
+      ${colorStrip}
+      <div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#c8b890;">${proj.name}</div>
+          <div style="font-size:11px;color:#3a3020;margin-top:3px;">${paintList.length} paint${paintList.length!==1?"s":""} · ${ownedCount}/${paintList.length} owned · ${new Date(proj.updatedAt).toLocaleDateString()}</div>
+        </div>
+        <button data-del-proj="${proj.id}" style="background:transparent;border:1px solid #3a1a1a;border-radius:8px;color:#703030;font-size:12px;padding:6px 10px;cursor:pointer;">✕</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  return `
+  <div class="fade" style="flex:1;overflow-y:auto;padding:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:#d4af37;">My Projects</div>
+        <div style="font-size:12px;color:#4a4030;margin-top:2px;">${state.projects.length} saved · ${state.inventory.length} paints owned</div>
+      </div>
+      <button id="new-proj-btn" style="padding:10px 18px;border-radius:10px;cursor:pointer;background:linear-gradient(135deg,#8b6914,#d4af37);border:none;color:#0d0d0f;font-size:13px;font-weight:700;font-family:'Cinzel',serif;">+ New</button>
+    </div>
+    ${state.projects.length===0 ? `
+      <div style="text-align:center;padding:60px 20px;">
+        <div style="font-size:56px;margin-bottom:16px;">🛡️</div>
+        <div style="font-size:14px;color:#4a4030;font-family:'Crimson Text',serif;font-style:italic;margin-bottom:20px;">No projects yet — plan your first warband</div>
+        <button id="new-proj-btn2" style="padding:12px 28px;border-radius:10px;cursor:pointer;background:transparent;border:1px solid #d4af37;color:#d4af37;font-size:13px;font-family:'Cinzel',serif;">+ Create First Project</button>
+      </div>` : cards}
+    <div style="height:16px;"></div>
+  </div>`;
+}
+
+// ── EDITOR SCREEN ─────────────────────────────────────────────────────────────
+function buildEditor() {
+  return `
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+    ${buildEditorNameBar()}
+    ${state.parts.length ? buildEditorTabs() : ""}
+    <div style="flex:1;overflow-y:auto;">
+      ${state.editorTab==="parts"    ? buildPartsTab()    : ""}
+      ${state.editorTab==="visualize"? buildVisualizeTab(): ""}
+      ${state.editorTab==="overlay"  ? buildOverlayTab()  : ""}
+    </div>
+  </div>`;
+}
+
+function buildEditorNameBar() {
+  return `
+  <div style="padding:8px 16px;border-bottom:1px solid #1e1e20;background:#0f0e0c;flex-shrink:0;">
+    ${state.editingName
+      ? `<input id="name-input" value="${state.projectName}" style="width:100%;background:#1a1810;border:1px solid #d4af37;border-radius:8px;color:#d4af37;padding:8px 12px;font-size:15px;outline:none;font-family:'Cinzel',serif;" autofocus/>`
+      : `<div id="name-display" style="font-size:15px;font-weight:700;color:#d4af37;display:flex;align-items:center;gap:8px;cursor:pointer;">${state.projectName} <span style="font-size:12px;color:#3a3020;">✎</span></div>`
+    }
+  </div>`;
+}
+
+function buildEditorTabs() {
+  const tabs = [
+    {id:"parts",    label:"🖌 Paints"},
+    {id:"visualize",label:"✨ Analysis", locked:!state.analysisResult},
+    {id:"overlay",  label:"👁 Overlay"},
+  ];
+  return `
+  <div style="display:flex;border-bottom:1px solid #1e1e20;background:#0f0e0c;flex-shrink:0;">
+    ${tabs.map(t=>`
+      <button class="tab-btn" data-tab="${t.id}" style="color:${t.locked?"#2a2018":state.editorTab===t.id?"#d4af37":"#6a5a40"};border-bottom:2px solid ${state.editorTab===t.id?"#d4af37":"transparent"};cursor:${t.locked?"not-allowed":"pointer"};">
+        ${t.label}
+      </button>`).join("")}
+  </div>`;
+}
+
+function buildPartsTab() {
+  const uploadArea = !state.image ? `
+    <label for="file-input" style="display:block;border:2px dashed #2a2018;border-radius:14px;padding:36px 20px;text-align:center;cursor:pointer;margin-bottom:16px;">
+      <div style="font-size:40px;margin-bottom:10px;">📷</div>
+      <div style="color:#d4af37;font-size:15px;font-weight:600;">Tap to add miniature photo</div>
+      <div style="color:#4a3a20;font-size:12px;margin-top:6px;">Camera or gallery</div>
+    </label>
+    <input type="file" id="file-input" accept="image/*" capture="environment" style="display:none;"/>` : `
+    <div style="position:relative;margin-bottom:16px;">
+      <img src="${state.image}" style="width:100%;border-radius:12px;border:1px solid #2a2018;max-height:220px;object-fit:cover;display:block;"/>
+      <button id="clear-img" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.85);border:1px solid #3a3020;border-radius:8px;color:#c8b890;font-size:12px;padding:4px 10px;cursor:pointer;">✕ Change</button>
+    </div>`;
+
+  const errorEl = state.error ? `<div style="background:rgba(180,30,30,0.15);border:1px solid #602020;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#e07070;">⚠️ ${state.error}</div>` : "";
+
+  const analyseBtn = state.image && state.editorStep==="upload" ? `
+    <button id="analyse-btn" ${state.analyzing?"disabled":""} style="width:100%;padding:14px;border-radius:12px;border:none;background:${state.analyzing?"#1a1810":"linear-gradient(135deg,#8b6914,#d4af37)"};color:${state.analyzing?"#5a5040":"#0d0d0f"};font-size:15px;font-weight:700;letter-spacing:0.06em;cursor:${state.analyzing?"not-allowed":"pointer"};margin-bottom:16px;font-family:'Cinzel',serif;">
+      ${state.analyzing?`${dots()} Analysing miniature…`:"⚡ Analyse Miniature"}
+    </button>` : "";
+
+  const partsList = state.parts.length ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:11px;letter-spacing:0.12em;color:#4a4030;">COMPONENTS</div>
+      <div style="font-size:11px;color:${assignedCount()===state.parts.length?"#27ae60":"#d4af37"};">${assignedCount()}/${state.parts.length} painted</div>
+    </div>
+    ${state.parts.map(p=>{
+      const paint=state.paintAssignments[p.part];
+      const owned=paint&&state.inventory.includes(paint.name);
+      return `
+      <button class="part-row" data-part="${p.part}">
+        <div style="width:40px;height:40px;border-radius:10px;flex-shrink:0;background:${paint?paint.hex:"#1a1810"};border:${paint?`2px solid ${paint.hex}`:"2px dashed #2a2018"};box-shadow:${paint?`0 0 10px ${paint.hex}55`:"none"};position:relative;transition:all 0.3s;">
+          ${owned?`<div style="position:absolute;bottom:-3px;right:-3px;width:12px;height:12px;border-radius:50%;background:#27ae60;border:1.5px solid #0d0d0f;"></div>`:""}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:600;color:${paint?"#c8b890":"#6a5a40"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.part}</div>
+          <div style="font-size:11px;color:${paint?"#5a4a30":"#3a2a20"};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${paint?paint.name:"Tap to assign paint"}</div>
+        </div>
+        <div style="font-size:18px;color:#3a3020;">›</div>
+      </button>`;
+    }).join("")}
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;margin-top:8px;">
+      <button id="visualize-btn" ${state.visualizing?"disabled":""} style="width:100%;padding:14px;border-radius:12px;background:rgba(212,175,55,0.1);border:1px solid #d4af37;color:${state.visualizing?"#5a5040":"#d4af37"};font-size:14px;font-weight:600;cursor:${state.visualizing?"not-allowed":"pointer"};font-family:'Cinzel',serif;">
+        ${state.visualizing?`${dots()} Generating…`:"✨ Visualise Colour Scheme"}
+      </button>
+      <button id="export-btn" class="ghost-btn">🛒 Export Shopping List</button>
+    </div>` : `
+    ${!state.image?`<div style="text-align:center;padding:20px;color:#3a3020;font-family:'Crimson Text',serif;font-style:italic;font-size:13px;">Upload a photo to start planning your paint scheme</div>`:""}`;
+
+  return `<div class="fade" style="padding:16px;">${uploadArea}${errorEl}${analyseBtn}${partsList}<div style="height:8px;"></div></div>`;
+}
+
+function buildVisualizeTab() {
+  const ar = state.analysisResult;
+  if (!ar) return `<div style="padding:16px;text-align:center;color:#3a3020;">Generate a visualisation first</div>`;
+
+  const strip = state.parts.filter(p=>state.paintAssignments[p.part]).map(p=>{
+    const paint=state.paintAssignments[p.part];
+    return `<div title="${p.part}" style="flex:1;background:${paint.hex};position:relative;"><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);font-size:7px;padding:2px;color:#fff;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.part}</div></div>`;
+  }).join("");
+
+  const highlights = ar.highlights ? Object.entries(ar.highlights).map(([part,hl])=>{
+    const base=state.paintAssignments[part];
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:18px;height:18px;border-radius:4px;background:${base?.hex||"#2a2018"};flex-shrink:0;"></div><span style="font-size:12px;color:#d4af37;flex:1;">${part}</span><span style="font-size:12px;color:#5a5040;">→ ${hl}</span></div>`;
+  }).join("") : "";
+
+  const paintListRows = state.parts.map(p=>{
+    const paint=state.paintAssignments[p.part];
+    const owned=paint&&state.inventory.includes(paint.name);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="width:16px;height:16px;border-radius:3px;flex-shrink:0;background:${paint?paint.hex:"#2a2018"};border:1px solid ${paint?paint.hex:"#2a2018"};"></div>
+      <span style="font-size:12px;color:#6a5a40;min-width:110px;flex:1;">${p.part}</span>
+      <span style="font-size:12px;color:${paint?"#c8b890":"#3a3020"};">${paint?paint.name:"—"}</span>
+      ${owned?`<span style="font-size:10px;color:#27ae60;">✓</span>`:""}
+    </div>`;
+  }).join("");
+
+  return `
+  <div class="fade" style="padding:16px;">
+    <div style="display:flex;height:44px;border-radius:10px;overflow:hidden;border:1px solid #2a2018;margin-bottom:16px;">${strip}</div>
+    <div style="background:linear-gradient(135deg,#1a1810,#120f08);border:1px solid #2a2018;border-radius:14px;padding:16px;margin-bottom:14px;">
+      <div style="font-size:10px;letter-spacing:0.15em;color:#d4af37;margin-bottom:8px;">PAINTED RESULT</div>
+      <div style="font-size:14px;line-height:1.7;font-family:'Crimson Text',serif;color:#c8b890;font-style:italic;">"${ar.visualDescription}"</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+      <div style="background:#0f0f11;border:1px solid #1e1e20;border-radius:12px;padding:14px;">
+        <div style="font-size:10px;letter-spacing:0.12em;color:#4a4030;margin-bottom:6px;">COLOUR HARMONY</div>
+        <div style="font-size:22px;font-weight:700;color:${HARMONY_COLORS[ar.harmonyRating]||"#d4af37"};margin-bottom:4px;">${ar.harmonyRating}</div>
+        <div style="font-size:12px;color:#6a5a40;font-family:'Crimson Text',serif;">${ar.harmonyReason}</div>
+      </div>
+      <div style="background:#0f0f11;border:1px solid #d4af3728;border-radius:12px;padding:14px;">
+        <div style="font-size:10px;letter-spacing:0.12em;color:#d4af37;margin-bottom:6px;">⚔ PRO TIP</div>
+        <div style="font-size:13px;color:#c8b890;font-family:'Crimson Text',serif;line-height:1.55;">${ar.proTip}</div>
+      </div>
+    </div>
+    ${highlights?`<div style="background:#0f0f11;border:1px solid #1e1e20;border-radius:12px;padding:14px;margin-bottom:14px;"><div style="font-size:10px;letter-spacing:0.12em;color:#4a4030;margin-bottom:12px;">SUGGESTED HIGHLIGHTS</div>${highlights}</div>`:""}
+    <div style="background:#0f0f11;border:1px solid #1e1e20;border-radius:12px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:10px;letter-spacing:0.12em;color:#4a4030;margin-bottom:12px;">FULL PAINT LIST</div>
+      ${paintListRows}
+    </div>
+    <button id="export-btn2" class="ghost-btn" style="margin-bottom:16px;">🛒 Export Shopping List</button>
+  </div>`;
+}
+
+function buildOverlayTab() {
+  return `
+  <div class="fade" style="padding:16px;">
+    <div style="font-size:11px;color:#4a4030;letter-spacing:0.1em;margin-bottom:14px;">COLOUR OVERLAY PREVIEW</div>
+    ${state.image && assignedCount()>0 ? `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <span style="font-size:11px;color:#7a6a50;white-space:nowrap;">Blend</span>
+        <input type="range" id="opacity-slider" min="0.1" max="0.9" step="0.05" value="${state.overlayOpacity}" style="flex:1;"/>
+        <span style="font-size:12px;color:#d4af37;min-width:36px;text-align:right;">${Math.round(state.overlayOpacity*100)}%</span>
+      </div>
+      <canvas id="overlay-canvas" style="width:100%;border-radius:10px;border:1px solid #2a2018;display:block;"></canvas>
+      <p style="margin-top:10px;font-size:11px;color:#3a3020;font-style:italic;text-align:center;">Artistic approximation — colours map left-to-right by assignment order</p>
+    ` : `<div style="border:1px solid #1e1e20;border-radius:14px;padding:48px;text-align:center;color:#3a3020;font-family:'Crimson Text',serif;font-style:italic;">${!state.image?"Upload a photo first":"Assign paints to see the overlay"}</div>`}
+  </div>`;
+}
+
+// ── PAINT SHEET ───────────────────────────────────────────────────────────────
+function buildPaintSheet() {
+  const part = state.selectedPart;
+  const partData = state.parts.find(p=>p.part===part);
+  const currentPaint = state.paintAssignments[part];
+  const filter = state.paintFilter;
+  const search = state.paintSearch;
+
+  const paints = PAINTS.filter(p=>(filter==="All"||p.type===filter)&&p.name.toLowerCase().includes(search.toLowerCase()));
+  const groups = {};
+  paints.forEach(p=>{(groups[p.type]=groups[p.type]||[]).push(p);});
+
+  const chipGroups = Object.entries(groups).map(([type,tpaints])=>`
+    <div style="margin-bottom:16px;">
+      <div style="font-size:10px;letter-spacing:0.15em;color:${TYPE_COLORS[type]};margin-bottom:8px;">${type.toUpperCase()}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;">
+        ${tpaints.map(paint=>{
+          const isSelected = currentPaint?.name===paint.name;
+          const owned = state.inventory.includes(paint.name);
+          const wished = state.wishlist.includes(paint.name);
+          const badge = owned?`<div style="position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:#27ae60;border:1.5px solid #0d0d0f;font-size:7px;display:flex;align-items:center;justify-content:center;color:#fff;">✓</div>`
+            :wished?`<div style="position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:#d4af37;border:1.5px solid #0d0d0f;font-size:9px;display:flex;align-items:center;justify-content:center;color:#0d0d0f;">★</div>`:""
+          return `
+          <button class="paint-chip-btn" data-select-paint="${paint.name}">
+            <div style="width:44px;height:44px;border-radius:10px;background:${paint.hex};border:${isSelected?"3px solid #fff":"2px solid rgba(255,255,255,0.1)"};box-shadow:${isSelected?`0 0 0 2px ${paint.hex},0 0 14px ${paint.hex}99`:"none"};position:relative;transition:all 0.15s;">
+              ${badge}
+            </div>
+            <span style="font-size:8px;color:${isSelected?"#d4af37":"#5a5040"};text-align:center;line-height:1.2;word-break:break-word;">${paint.name.split(" ").slice(0,2).join(" ")}</span>
+          </button>`;
+        }).join("")}
+      </div>
+    </div>`).join("");
+
+  const filterPills = ["All","Base","Layer","Shade","Glaze","Contrast"].map(f=>`
+    <button class="type-pill" data-filter="${f}" style="background:${filter===f?"#d4af37":"#1a1810"};border:1px solid ${filter===f?"#d4af37":"#2a2018"};color:${filter===f?"#0d0d0f":"#7a6a50"};font-weight:${filter===f?700:400};">
+      ${f}
+    </button>`).join("");
+
+  return `
+  <div class="sheet-backdrop" id="sheet-backdrop"></div>
+  <div class="sheet">
+    <div style="display:flex;justify-content:center;padding:10px 0 0;">
+      <div style="width:40px;height:4px;border-radius:2px;background:#3a3020;"></div>
+    </div>
+    <div style="padding:12px 16px 10px;border-bottom:1px solid #1e1e20;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        <div style="width:36px;height:36px;border-radius:8px;flex-shrink:0;background:${currentPaint?currentPaint.hex:"#2a2018"};border:${currentPaint?`2px solid ${currentPaint.hex}`:"2px solid #3a3020"};box-shadow:${currentPaint?`0 0 14px ${currentPaint.hex}66`:"none"};"></div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:700;color:#d4af37;">${part}</div>
+          ${partData?`<div style="font-size:11px;color:#6a5a40;margin-top:2px;">${partData.description}</div>`:""}
+        </div>
+        <button id="close-sheet" style="background:transparent;border:none;color:#5a5040;font-size:24px;cursor:pointer;padding:0 4px;">✕</button>
+      </div>
+      ${currentPaint?`
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:#1a1810;border-radius:8px;">
+          <div style="width:14px;height:14px;border-radius:3px;background:${currentPaint.hex};flex-shrink:0;"></div>
+          <span style="font-size:12px;color:#c8b890;font-weight:600;flex:1;">${currentPaint.name}</span>
+          <span style="font-size:10px;color:${TYPE_COLORS[currentPaint.type]};background:${TYPE_COLORS[currentPaint.type]}18;padding:2px 7px;border-radius:4px;">${currentPaint.type}</span>
+          ${!state.inventory.includes(currentPaint.name)?`<button data-wish-paint="${currentPaint.name}" style="background:transparent;border:none;cursor:pointer;font-size:18px;color:${state.wishlist.includes(currentPaint.name)?"#d4af37":"#3a3020"};padding:0 2px;">${state.wishlist.includes(currentPaint.name)?"★":"☆"}</button>`:
+          `<span style="font-size:11px;color:#27ae60;">✓ owned</span>`}
+        </div>`:""}
+      <input id="paint-search" placeholder="Search paints…" value="${search}" style="width:100%;background:#1a1810;border:1px solid #2a2018;border-radius:8px;color:#c8b890;padding:9px 14px;font-size:14px;outline:none;"/>
+    </div>
+    <div style="display:flex;gap:6px;padding:10px 16px;overflow-x:auto;flex-shrink:0;scrollbar-width:none;">${filterPills}</div>
+    <div style="overflow-y:auto;padding:4px 16px 32px;flex:1;">${chipGroups}</div>
+  </div>`;
+}
+
+// ── COLLECTION SCREEN ─────────────────────────────────────────────────────────
+function buildCollection() {
+  let list = PAINTS;
+  if (state.collTab==="inventory") list=list.filter(p=>state.inventory.includes(p.name));
+  if (state.collTab==="wishlist")  list=list.filter(p=>state.wishlist.includes(p.name));
+  list = list.filter(p=>p.name.toLowerCase().includes(state.collSearch.toLowerCase()));
+
+  const groups = {};
+  list.forEach(p=>{(groups[p.type]=groups[p.type]||[]).push(p);});
+
+  const rows = Object.entries(groups).map(([type,paints])=>`
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:10px;letter-spacing:0.15em;color:${TYPE_COLORS[type]||"#888"};">${type.toUpperCase()}</span>
+        <div style="flex:1;height:1px;background:#1e1e20;"></div>
+      </div>
+      ${paints.map(paint=>{
+        const owned=state.inventory.includes(paint.name);
+        const wished=state.wishlist.includes(paint.name);
+        return `
+        <div class="inv-row" style="border:1px solid ${owned?"#27ae6030":wished?"#d4af3728":"#1a1a1c"};">
+          <div style="width:32px;height:32px;border-radius:8px;flex-shrink:0;background:${paint.hex};border:1px solid ${paint.hex}88;box-shadow:${owned?`0 0 8px ${paint.hex}44`:"none"};"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;color:${owned?"#c8b890":"#6a5a40"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${paint.name}</div>
+            <div style="font-size:10px;color:${TYPE_COLORS[paint.type]};margin-top:2px;">${paint.type}</div>
+          </div>
+          <button data-inv="${paint.name}" style="width:38px;height:38px;border-radius:9px;cursor:pointer;flex-shrink:0;background:${owned?"rgba(39,174,96,0.2)":"transparent"};border:2px solid ${owned?"#27ae60":"#2a3a2a"};color:${owned?"#27ae60":"#2a4a2a"};font-size:16px;display:flex;align-items:center;justify-content:center;">✓</button>
+          <button data-wl="${paint.name}" style="width:38px;height:38px;border-radius:9px;cursor:pointer;flex-shrink:0;background:${wished?"rgba(212,175,55,0.18)":"transparent"};border:2px solid ${wished?"#d4af37":"#2a2818"};color:${wished?"#d4af37":"#2a2818"};font-size:18px;display:flex;align-items:center;justify-content:center;">★</button>
+        </div>`;
+      }).join("")}
+    </div>`).join("");
+
+  const emptyMsg = list.length===0 ? `<div style="text-align:center;padding:48px 20px;color:#3a3020;font-family:'Crimson Text',serif;font-style:italic;">${state.collTab==="inventory"?"No paints owned yet":state.collTab==="wishlist"?"Wishlist is empty":"No results"}</div>` : "";
+
+  return `
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;" class="fade">
+    <div style="display:flex;border-bottom:1px solid #1e1e20;background:#0f0e0c;flex-shrink:0;">
+      <button class="tab-btn" data-coll-tab="all" style="color:${state.collTab==="all"?"#d4af37":"#6a5a40"};border-bottom:2px solid ${state.collTab==="all"?"#d4af37":"transparent"};">All (${PAINTS.length})</button>
+      <button class="tab-btn" data-coll-tab="inventory" style="color:${state.collTab==="inventory"?"#d4af37":"#6a5a40"};border-bottom:2px solid ${state.collTab==="inventory"?"#d4af37":"transparent"};">Owned (${state.inventory.length})</button>
+      <button class="tab-btn" data-coll-tab="wishlist" style="color:${state.collTab==="wishlist"?"#d4af37":"#6a5a40"};border-bottom:2px solid ${state.collTab==="wishlist"?"#d4af37":"transparent"};">Wishlist (${state.wishlist.length})</button>
+    </div>
+    <div style="padding:10px 16px;border-bottom:1px solid #1e1e20;flex-shrink:0;">
+      <input id="coll-search" placeholder="Search paints…" value="${state.collSearch}" style="width:100%;background:#1a1810;border:1px solid #2a2018;border-radius:10px;color:#c8b890;padding:10px 14px;font-size:14px;outline:none;"/>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:12px 16px;">
+      ${emptyMsg}${rows}
+      <div style="height:8px;"></div>
+    </div>
+    <div style="border-top:1px solid #1e1e20;padding:10px 20px;background:#0f0e0c;display:flex;justify-content:space-around;flex-shrink:0;">
+      ${[{l:"Owned",v:state.inventory.length,c:"#27ae60"},{l:"Wishlist",v:state.wishlist.length,c:"#d4af37"},{l:"Missing",v:PAINTS.length-state.inventory.length,c:"#3a3020"}]
+        .map(x=>`<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:${x.c};">${x.v}</div><div style="font-size:9px;letter-spacing:0.1em;color:#3a3020;margin-top:2px;">${x.l.toUpperCase()}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+// ── EVENT BINDING ─────────────────────────────────────────────────────────────
+function bindEvents() {
+  // Nav
+  document.querySelectorAll("[data-nav]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const id = btn.dataset.nav;
+      if (id==="editor") {
+        state.editingProjectId||state.parts.length ? setState({screen:"editor"}) : newProject();
+      } else {
+        setState({screen:id});
+      }
+    });
+  });
+
+  // Save
+  const saveBtn = document.getElementById("save-btn");
+  if (saveBtn) saveBtn.addEventListener("click", saveProject);
+
+  // Projects
+  const newBtn = document.getElementById("new-proj-btn");
+  if (newBtn) newBtn.addEventListener("click", newProject);
+  const newBtn2 = document.getElementById("new-proj-btn2");
+  if (newBtn2) newBtn2.addEventListener("click", newProject);
+
+  document.querySelectorAll("[data-open-proj]").forEach(el=>{
+    el.addEventListener("click", e=>{
+      if (e.target.dataset.delProj) return;
+      const proj = state.projects.find(p=>p.id===el.dataset.openProj);
+      if (proj) openProject(proj);
+    });
+  });
+  document.querySelectorAll("[data-del-proj]").forEach(btn=>{
+    btn.addEventListener("click", e=>{ e.stopPropagation(); saveProjects(state.projects.filter(p=>p.id!==btn.dataset.delProj)); });
+  });
+
+  // Editor
+  const nameDisplay = document.getElementById("name-display");
+  if (nameDisplay) nameDisplay.addEventListener("click",()=>setState({editingName:true}));
+  const nameInput = document.getElementById("name-input");
+  if (nameInput) {
+    nameInput.addEventListener("blur",()=>setState({editingName:false}));
+    nameInput.addEventListener("input",e=>{ state.projectName=e.target.value; });
+    nameInput.focus();
+  }
+
+  // Editor tabs
+  document.querySelectorAll("[data-tab]").forEach(btn=>{
+    btn.addEventListener("click",()=>setState({editorTab:btn.dataset.tab}));
+  });
+
+  // File input
+  const fileInput = document.getElementById("file-input");
+  if (fileInput) fileInput.addEventListener("change",e=>handleFile(e.target.files[0]));
+  const clearImg = document.getElementById("clear-img");
+  if (clearImg) clearImg.addEventListener("click",()=>setState({image:null,imageBase64:null,editorStep:"upload",parts:[],paintAssignments:{},analysisResult:null}));
+
+  const analyseBtn = document.getElementById("analyse-btn");
+  if (analyseBtn) analyseBtn.addEventListener("click", analyzeImage);
+
+  // Part rows
+  document.querySelectorAll("[data-part]").forEach(btn=>{
+    btn.addEventListener("click",()=>setState({selectedPart:btn.dataset.part, showPaintSheet:true, paintFilter:"All", paintSearch:""}));
+  });
+
+  const vizBtn = document.getElementById("visualize-btn");
+  if (vizBtn) vizBtn.addEventListener("click", generateVisualization);
+  const exportBtn = document.getElementById("export-btn");
+  if (exportBtn) exportBtn.addEventListener("click", exportShoppingList);
+  const exportBtn2 = document.getElementById("export-btn2");
+  if (exportBtn2) exportBtn2.addEventListener("click", exportShoppingList);
+
+  // Overlay
+  const slider = document.getElementById("opacity-slider");
+  if (slider) slider.addEventListener("input",e=>{ state.overlayOpacity=+e.target.value; renderOverlay(); e.target.nextElementSibling.textContent=Math.round(state.overlayOpacity*100)+"%"; });
+
+  // Paint sheet
+  const closeSheet = document.getElementById("close-sheet");
+  if (closeSheet) closeSheet.addEventListener("click",()=>setState({showPaintSheet:false}));
+  const backdrop = document.getElementById("sheet-backdrop");
+  if (backdrop) backdrop.addEventListener("click",()=>setState({showPaintSheet:false}));
+
+  document.querySelectorAll("[data-select-paint]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const paint = PAINTS.find(p=>p.name===btn.dataset.selectPaint);
+      if (paint && state.selectedPart) {
+        state.paintAssignments = {...state.paintAssignments, [state.selectedPart]:paint};
+        render();
+      }
+    });
+  });
+
+  const paintSearch = document.getElementById("paint-search");
+  if (paintSearch) {
+    paintSearch.addEventListener("input",e=>{ state.paintSearch=e.target.value; render(); });
+    paintSearch.focus();
+  }
+
+  document.querySelectorAll("[data-filter]").forEach(btn=>{
+    btn.addEventListener("click",()=>setState({paintFilter:btn.dataset.filter}));
+  });
+
+  document.querySelectorAll("[data-wish-paint]").forEach(btn=>{
+    btn.addEventListener("click",()=>toggleWishlist(btn.dataset.wishPaint));
+  });
+
+  // Collection
+  document.querySelectorAll("[data-coll-tab]").forEach(btn=>{
+    btn.addEventListener("click",()=>setState({collTab:btn.dataset.collTab}));
+  });
+  const collSearch = document.getElementById("coll-search");
+  if (collSearch) collSearch.addEventListener("input",e=>setState({collSearch:e.target.value}));
+
+  document.querySelectorAll("[data-inv]").forEach(btn=>{
+    btn.addEventListener("click",()=>toggleInventory(btn.dataset.inv));
+  });
+  document.querySelectorAll("[data-wl]").forEach(btn=>{
+    btn.addEventListener("click",()=>toggleWishlist(btn.dataset.wl));
+  });
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+loadStorage();
+render();
+</script>
+</body>
+</html>
